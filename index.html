@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta name="viewport" content="initial-scale=1.0, user-scalable=no" />
+    <meta charset="utf-8">
+    <title>Estaciones de Servicio en Bahía Blanca — Volumen expendido y variación de precios</title>
+    <style type="text/css">
+      html { height: 100% }
+      body { height: 100%; margin: 0; padding: 0; font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; }
+      #map_canvas { height: 100%; }
+      #infoWindow { height: 300px; width: 550px; overflow: auto; font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;}
+        #infoWindow h3 { margin-bottom: 10px; margin-top: 10px;}
+          #infoWindow h3 img { vertical-align: middle; margin-right: 5px;}
+        #infoWindow #nafta_premium_chart { margin-top: 10px !important; }
+      #infoOverlay { height: 80px; width: 250px; position:absolute; bottom: 10px; left: 100px; background-color: rgba(255,255,255,0.9); 
+                     border-radius: 10px; padding: 5px;
+                     -moz-box-shadow: 0 0 20px #999;
+                     -webkit-box-shadow: 0 0 20px #999;
+                     box-shadow: 0 0 20px #999;
+                     font-size: 13px; color: #444444;
+                   }
+    </style>
+    <script type="text/javascript" src="https://www.google.com/jsapi"></script>
+    <script type="text/javascript">
+      google.load("visualization", "1", {packages:["corechart"]});
+    </script>
+    <script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jquery/1.7.2/jquery.min.js"></script>
+    <script type="text/javascript" src="http://documentcloud.github.com/underscore/underscore-min.js"></script>
+    <script type="text/javascript"src="http://maps.googleapis.com/maps/api/js?key=AIzaSyD7JJirrmd46EaFnupIqTFGsBhmcCe57Mg&sensor=false"></script>
+    <script type="text/javascript">
+    
+      var initialize = function() {
+        var mapOptions = {
+          center: new google.maps.LatLng(-38.717648,-62.265959),
+          zoom: 12,
+          mapTypeId: google.maps.MapTypeId.ROADMAP
+        };
+
+        var map = new google.maps.Map(document.getElementById("map_canvas"),
+            mapOptions);
+
+
+        var BANDERA_ICON = { 
+            'BLANCA': new google.maps.MarkerImage('img/blanca.png', new google.maps.Size(32, 32), new google.maps.Point(0,0), new google.maps.Point(15, 15)),
+            'SOL PETROLEO': new google.maps.MarkerImage('img/blanca.png', new google.maps.Size(32, 32), new google.maps.Point(0,0), new google.maps.Point(15, 15)),
+            'REPSOL-YPF': new google.maps.MarkerImage('img/ypf.png', new google.maps.Size(32, 32), new google.maps.Point(0,0), new google.maps.Point(15, 15)),
+            'ESSO PETROLERA ARGENTINA S.R.L': new google.maps.MarkerImage('img/esso.png', new google.maps.Size(32, 24), new google.maps.Point(0,0), new google.maps.Point(15, 15)),
+            'SHELL C.A.P.S.A.': new google.maps.MarkerImage('img/shell.png', new google.maps.Size(32, 32), new google.maps.Point(0,0), new google.maps.Point(15, 15)),
+            'PETROBRAS': new google.maps.MarkerImage('img/petrobras.png', new google.maps.Size(32, 32), new google.maps.Point(0,0), new google.maps.Point(15, 15)),
+        };
+
+        var QUERY_PREFIX = 'https://www.google.com/fusiontables/api/query?sql=';
+        var QUERY_SUFFIX = '&jsonCallback=?';
+        var QUERY_TABLE  = '1elZepViDhswGl297ZSMZFdVumAXnvIcnsePWLpg';
+        
+        var estacionesQuery = 'SELECT Operador, Bandera, Direccion, point, COUNT() FROM ' + QUERY_TABLE + ' GROUP BY Operador, Bandera, Direccion, point';  
+
+        var openInfoWindowEstacionId = null;
+        var infoWindow = new google.maps.InfoWindow();
+
+        var getProductosEstacion = function(point, callback) {
+            var q = "SELECT Periodo, Producto, Volumen, 'Precio surtidor' FROM " + QUERY_TABLE + " WHERE point = '" + point + "'";
+            var rv = [];
+            $.get(encodeURI(QUERY_PREFIX + q + QUERY_SUFFIX),
+                  callback,
+                  'jsonp'
+                 );
+        };
+
+
+        var drawInfoWindowCharts = function(data) {
+            var grouped = _.groupBy(data.table.rows,
+                                    function(i) { return i[1]; });
+            var premium = grouped['Nafta "premium" de mas de 95 Ron'];
+            premium.splice(0,0,['Periodo', 'Producto', 'Volumen (m³)', 'Precio']);
+            var dataView = new google.visualization.DataView(google.visualization.arrayToDataTable(premium));
+            dataView.setColumns([0,2,3]);
+            var chart = new google.visualization.LineChart(document.getElementById('nafta_premium_chart'));
+            chart.draw(dataView, { title: "Nafta Premium", legend: {position: 'top'} });
+
+            var gasoil = grouped['Gas Oil Grado 2'];
+            gasoil.splice(0,0,['Periodo', 'Producto', 'Volumen (m³)', 'Precio']);
+            var dataView = new google.visualization.DataView(google.visualization.arrayToDataTable(gasoil));
+            dataView.setColumns([0,2,3]);
+            var chart2 = new google.visualization.LineChart(document.getElementById('gasoil_chart'));
+            chart2.draw(dataView, { title: "Gasoil", legend: {position: 'top'} });
+
+        }
+
+       google.maps.event.addListener(infoWindow, 'domready', 
+                                     function() { getProductosEstacion(openInfoWindowEstacionId, drawInfoWindowCharts); });
+
+
+        var markerClickFunction = function(map, m, ifw, estacion) {
+            return function() {
+
+                ifw.close(map);
+                // Build html content, using data stored in the marker
+                // instance
+
+                openInfoWindowEstacionId = estacion.point;
+                
+                var infoHtml = '<div id="infoWindow"><h3><img src="'+BANDERA_ICON[estacion.bandera].url+'" >' + estacion.operador + '</h3>';
+                infoHtml += '<em>' + estacion.direccion + '</em>';
+                infoHtml += '<div id="nafta_premium_chart" style="width: 400px; height: 150px; margin:0; padding:0"></div>';
+                infoHtml += '<div id="gasoil_chart" style="width: 400px; height: 150px; margin:0; padding:0"></div>';
+                infoHtml += '</div> <!-- #infoWindow -->';
+
+                // Standard infoWindow initialization steps
+                infoWindow.setContent(infoHtml);
+                infoWindow.setPosition(m.position);
+                infoWindow.open(map);
+            };
+        };
+
+
+        var estacionesDataHandler = function(d) {
+            var data = d.table.rows;
+              
+            for (var i = 0; i < data.length; i++) {
+                if (data[i][3] == '') continue;
+
+                var ll = data[i][3].split(',')
+                var latlon = new google.maps.LatLng(ll[0], ll[1]);
+              
+                var marker = new google.maps.Marker({
+                    position: latlon,
+                    rowid: i,
+                    map: map,
+                    icon: BANDERA_ICON[data[i][1]],
+                    flat: false
+                });
+                var fn = markerClickFunction(map, marker, infoWindow, 
+                                             { 
+                                                 operador: data[i][0], 
+                                                 bandera: data[i][1], 
+                                                 point: data[i][3], 
+                                                 direccion: data[i][2] 
+                                             });
+                google.maps.event.addListener(marker, 'click', fn);
+            }
+        };
+
+          
+        $.get(encodeURI(QUERY_PREFIX + estacionesQuery + QUERY_SUFFIX), estacionesDataHandler, 'jsonp');
+          
+      };
+    </script>
+  </head>
+  <body onload="initialize()">
+    <div id="map_canvas" style="width:100%; height:100%"></div>
+    <div id="infoOverlay">
+       <p>Datos provinientes de la <a href="http://energia3.mecon.gov.ar/home/" target="_blank">Secretaría de Energía</a> (<a href="http://res1104.se.gov.ar/consultaprecios.eess.php" target="_blank">RES SE 1104</a>)</p>
+       <p>Autor: <a href="http://jazzido.com" target="_blank">Manuel Aristarán</a></p>
+    </div>
+  </body>
+</html>
