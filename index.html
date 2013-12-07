@@ -49,8 +49,8 @@
             'PETROBRAS': new google.maps.MarkerImage('img/petrobras.png', new google.maps.Size(32, 32), new google.maps.Point(0,0), new google.maps.Point(15, 15)),
         };
 
-        var QUERY_PREFIX = 'https://www.google.com/fusiontables/api/query?sql=';
-        var QUERY_SUFFIX = '&jsonCallback=?';
+        var QUERY_PREFIX = 'https://www.googleapis.com/fusiontables/v1/query?key=AIzaSyA1julwXJMaKGFC6dqdseQFGziEcvKtPj8&sql=';
+        var QUERY_SUFFIX = '&callback=?';
         var QUERY_TABLE  = '1elZepViDhswGl297ZSMZFdVumAXnvIcnsePWLpg';
         
         var estacionesQuery = 'SELECT Operador, Bandera, Direccion, point, COUNT() FROM ' + QUERY_TABLE + ' GROUP BY Operador, Bandera, Direccion, point';  
@@ -69,7 +69,7 @@
 
 
         var drawInfoWindowCharts = function(data) {
-            var grouped = _.groupBy(data.table.rows,
+            var grouped = _.groupBy(data.rows,
                                     function(i) { return i[1]; });
             var premium = grouped['Nafta "premium" de mas de 95 Ron'];
             premium.splice(0,0,['Periodo', 'Producto', 'Volumen (m³)', 'Precio']);
@@ -115,7 +115,7 @@
 
 
         var estacionesDataHandler = function(d) {
-            var data = d.table.rows;
+            var data = d.rows;
               
             for (var i = 0; i < data.length; i++) {
                 if (data[i][3] == '') continue;
